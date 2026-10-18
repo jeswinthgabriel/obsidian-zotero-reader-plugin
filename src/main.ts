@@ -94,14 +94,18 @@ export default class ZoteroReaderPlugin extends Plugin {
 		// Initialize the inline blob URLs need by the reader
 		(window as any).BLOB_URL_MAP = InitializeBlobUrls();
 
-		// Ensure MathJax is loaded
-		MarkdownRenderer.render(
-			this.app,
-			"$\\int$",
-			document.createElement("div"),
-			"",
-			new Component()
-		);
+		// Some Obsidian builds do not expose MathJax under the app:// path used by
+		// markdown rendering, and the forced render below can trigger a 404. Only
+		// initialize it when the runtime already has it available.
+		if ((window as any).MathJax) {
+			MarkdownRenderer.render(
+				this.app,
+				"$\\int$",
+				document.createElement("div"),
+				"",
+				new Component()
+			);
+		}
 
 		// Register the annotation comment extension
 		this.registerEditorExtension(OzrpAnnoCommentExtension());
