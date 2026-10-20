@@ -236,6 +236,64 @@ export class AnnotationManager {
 	}
 
 	/**
+	 * Sort all annotations in the file by book order (sortIndex).
+	 * Strategy B: annotation blocks stay in their original file slots;
+	 * only their contents are permuted. Non-annotation markdown (headings,
+	 * notes, etc.) is preserved exactly where it is.
+	 */
+	async sortAnnotationsByBookOrder(): Promise<number> {
+		return this.withLock(async () => {
+			const content = await this.vault.read(this.file);
+			this._annotationMap = AnnotationParser.parseWithRanges(content);
+
+			const annotations = Array.from(this._annotationMap.values());
+			if (annotations.length <= 1) return 0;
+
+			// Original file-position slots (sorted by where they appear in the file)
+			const fileSlots = [...annotations].sort(
+				(a, b) => a.range.start - b.range.start
+			);
+
+			// Book order (sorted by sortIndex: pageIndex|offset|top)
+			const bookOrder = [...annotations].sort((a, b) => {
+				const sa = a.json.sortIndex?.split("|")
+					.map(Number) ?? [0, 0, 0];
+				const sb = b.json.sortIndex?.split("|")
+					.map(Number) ?? [0, 0, 0];
+				for (let i = 0; i < 3; i++) {
+					if (sa[i] !== sb[i]) return sa[i] - sb[i];
+				}
+				return 0;
+			});
+
+			// Reconstruct: non-annotation content stays fixed; sorted annotations fill slots
+			let newContent = "";
+			let lastEnd = 0;
+
+			for (let i = 0; i < fileSlots.length; i++) {
+				const slot = fileSlots[i]; // where this annotation currently sits
+				const replacement = bookOrder[i]; // which annotation goes here (book order)
+
+				// Preserve everything between the previous slot and this one
+				newContent += content.slice(lastEnd, slot.range.start);
+
+				// Insert the replacement annotation block at this slot
+				newContent += this.buildAnnotationSection({ ...replacement.json, text: replacement.text, comment: replacement.comment });
+
+				lastEnd = slot.range.end;
+			}
+
+			// Append any trailing content after the last annotation
+			newContent += content.slice(lastEnd);
+
+			await this.vault.modify(this.file, newContent);
+			this._annotationMap = AnnotationParser.parseWithRanges(newContent);
+
+			return annotations.length;
+		});
+	}
+
+	/**
 	 * Refresh the annotation map from the current file content
 	 * This method is thread-safe and updates the internal map
 	 */
@@ -342,3 +400,5 @@ export class AnnotationManager {
 		return contentTrimmed + "\n\n" + section;
 	}
 }
+
+

@@ -37,12 +37,14 @@ export interface ZoteroReaderPluginSettings {
 	copyLinkToSelectionTemplate: string;
 	copyLinkToAnnotationTemplate: string;
 	defaultAnnotationCopyType: "annotation" | "block";
+	autoSortAnnotations: boolean;
 }
 
 export const DEFAULT_SETTINGS: ZoteroReaderPluginSettings = {
 	readerThemes: [],
 	sidebarPosition: "start",
 	defaultAnnotationCopyType: "block",
+	autoSortAnnotations: true,
 	annotationBlockTemplate: `%% OZRP-ANNO-BEGIN {{rawJson}} %%
 > [!ozrp-{{ type }}-{{ color }}] [{{source}}, page {{pageLabel}}]({{link}})
 > %% OZRP-ANNO-QUOTE-BEGIN %%
@@ -208,6 +210,22 @@ export default class ZoteroReaderPlugin extends Plugin {
 			name: "Update ALL annotations in vault to latest template",
 			callback: () => {
 				this.updateAllAnnotationsToLatestTemplate();
+			},
+		});
+
+		// Add command to sort annotations by book order
+		this.addCommand({
+			id: "sort-annotations-by-book-order",
+			name: "Sort Annotations by Book Order",
+			checkCallback: (checking: boolean) => {
+				const activeFile = this.app.workspace.getActiveFile();
+				if (activeFile && activeFile.extension === "md") {
+					if (!checking) {
+						this.sortAnnotationsByBookOrder(activeFile);
+					}
+					return true;
+				}
+				return false;
 			},
 		});
 
@@ -461,6 +479,32 @@ export default class ZoteroReaderPlugin extends Plugin {
 		}
 	}
 
+	/**
+	 * Sort all annotations in a markdown file by book order (sortIndex).
+	 * Strategy B: annotation blocks stay in their original file slots;
+	 * only their contents are permuted. Non-annotation markdown is untouched.
+	 */
+	private async sortAnnotationsByBookOrder(file: TFile): Promise<void> {
+		try {
+			const annotationManager = await AnnotationManager.create(
+				this.app.vault,
+				file,
+				this.settings.annotationBlockTemplate
+			);
+
+			const count = await annotationManager.sortAnnotationsByBookOrder();
+
+			if (count > 0) {
+				new Notice(`Sorted ${count} annotation(s) by book order.`);
+			} else {
+				new Notice("No annotations found to sort.");
+			}
+		} catch (error) {
+			console.error("Error sorting annotations by book order:", error);
+			new Notice("Failed to sort annotations. Check console for details.");
+		}
+	}
+
 	async loadSettings() {
 		this.settings = Object.assign(
 			{},
@@ -696,6 +740,20 @@ class SampleSettingTab extends PluginSettingTab {
 		annotationTemplateSetting.controlEl.style.flexDirection = "column";
 		annotationTemplateSetting.controlEl.style.width = "100%";
 		annotationTemplateSetting.controlEl.style.alignItems = "flex-end";
+
+		const autoSortAnnotationsSetting = new Setting(containerEl)
+			.setName("Auto-sort annotations by book order")
+			.setDesc(
+				"When enabled, newly created annotations are automatically sorted by page position (book order) in the note. When disabled, annotations are appended in creation order and you can use the 'Sort Annotations by Book Order' command manually."
+			)
+			.addToggle((toggle) => {
+				toggle
+					.setValue(this.plugin.settings.autoSortAnnotations)
+					.onChange(async (value) => {
+						this.plugin.settings.autoSortAnnotations = value;
+						await this.plugin.saveSettings();
+					});
+			});
 
 		const copyLinkToSelectionTemplateSetting = new Setting(containerEl)
 			.setName("Copy Link to Selection Template")

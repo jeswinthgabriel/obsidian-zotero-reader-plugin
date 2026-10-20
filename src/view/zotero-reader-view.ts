@@ -461,6 +461,16 @@ export class ZoteroReaderView extends ItemView {
 			[[], []]
 		);
 
+		// Sort new annotations by sortIndex (book order) before inserting
+		create.sort((a, b) => {
+			const sa = a.sortIndex?.split("|").map(Number) ?? [0, 0, 0];
+			const sb = b.sortIndex?.split("|").map(Number) ?? [0, 0, 0];
+			for (let i = 0; i < 3; i++) {
+				if (sa[i] !== sb[i]) return sa[i] - sb[i];
+			}
+			return 0;
+		});
+
 		for (const annotation of create) {
 			await this.annotationManager.addAnnotation({
 				json: annotation,
@@ -471,6 +481,13 @@ export class ZoteroReaderView extends ItemView {
 			await this.annotationManager.updateAnnotation(annotation.id, {
 				json: annotation,
 			});
+		}
+
+		// Re-sort all annotations in the file by book order so that
+		// annotations sent one at a time (not in a batch) still end up
+		// in the correct position relative to existing annotations.
+		if (this.plugin.settings.autoSortAnnotations) {
+			await this.annotationManager.sortAnnotationsByBookOrder();
 		}
 	}
 
