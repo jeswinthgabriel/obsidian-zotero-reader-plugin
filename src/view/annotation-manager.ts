@@ -330,17 +330,20 @@ export class AnnotationManager {
 		);
 
 		// Template context
+		let rawJson = JSON.stringify({ ...json, text: "", comment: "" });
+		// Escape [[ and ]] so Obsidian doesn't treat rects arrays as wiki links
+		rawJson = rawJson.replace(/\[\[/g, "&#91;&#91;").replace(/\]\]/g, "&#93;&#93;");
 		const templateContext = {
 			beginMarker: OzrpAnnoMarks.BEGIN.replace(
 				"{{rawJson}}",
-				JSON.stringify({ ...json, text: "", comment: "" })
+				rawJson
 			),
 			endMarker: OzrpAnnoMarks.END,
 			quoteBeginMarker: OzrpAnnoMarks.Q_BEGIN,
 			quoteEndMarker: OzrpAnnoMarks.Q_END,
 			commentBeginMarker: OzrpAnnoMarks.C_BEGIN,
 			commentEndMarker: OzrpAnnoMarks.C_END,
-			rawJson: JSON.stringify({ ...json, text: "", comment: "" }),
+			rawJson: rawJson,
 			type: json.type,
 			color,
 			displayText,

@@ -122,7 +122,10 @@ export class AnnotationParser {
 
 			const qm = QUOTE_BLOCK_RE.exec(normalized);
 			const cm = COMM_BLOCK_RE.exec(normalized);
-			const { json, error: jsonErr } = tryParseJsonFrom(jsonRaw);
+			const unescapedJsonRaw = jsonRaw
+				.replace(/&#91;&#91;/g, "[[")
+				.replace(/&#93;&#93;/g, "]]");
+			const { json, error: jsonErr } = tryParseJsonFrom(unescapedJsonRaw);
 
 			// Reset lastIndex for safety (these are not /g, but future-proof)
 			// N/A here – but keep note if toggled later
@@ -195,7 +198,10 @@ export class AnnotationParser {
 
 			const qm = QUOTE_BLOCK_RE.exec(bodyNorm);
 			const cm = COMM_BLOCK_RE.exec(bodyNorm);
-			const { json, error } = tryParseJsonFrom(jsonRaw);
+			const unescapedJsonRaw = jsonRaw
+				.replace(/&#91;&#91;/g, "[[")
+				.replace(/&#93;&#93;/g, "]]");
+			const { json, error } = tryParseJsonFrom(unescapedJsonRaw);
 
 			if (!qm) {
 				issues.push({
@@ -223,3 +229,7 @@ export class AnnotationParser {
 		return issues;
 	}
 }
+
+
+
+
